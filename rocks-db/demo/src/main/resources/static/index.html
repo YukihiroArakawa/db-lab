@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RocksDB Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #fafafa;
+        }
+        .section h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #333;
+        }
+        input[type="text"], input[type="number"], textarea {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .danger {
+            background-color: #dc3545;
+        }
+        .danger:hover {
+            background-color: #c82333;
+        }
+        .success {
+            background-color: #28a745;
+        }
+        .success:hover {
+            background-color: #218838;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .result.success {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .result.error {
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .stat-item {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ddd;
+        }
+        .stat-label {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 5px;
+        }
+        .stat-value {
+            font-family: monospace;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗃️ RocksDB Demo Application</h1>
+        
+        <!-- Basic Operations -->
+        <div class="section">
+            <h2>基本操作</h2>
+            <div class="form-group">
+                <label for="putKey">キー:</label>
+                <input type="text" id="putKey" placeholder="例: user:123">
+            </div>
+            <div class="form-group">
+                <label for="putValue">値:</label>
+                <input type="text" id="putValue" placeholder="例: John Doe">
+            </div>
+            <button onclick="putData()">保存</button>
+            
+            <div class="form-group" style="margin-top: 20px;">
+                <label for="getKey">取得するキー:</label>
+                <input type="text" id="getKey" placeholder="例: user:123">
+            </div>
+            <button onclick="getData()">取得</button>
+            <button onclick="deleteData()" class="danger">削除</button>
+            
+            <div id="basicResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <!-- Search Operations -->
+        <div class="section">
+            <h2>検索操作</h2>
+            <div class="form-group">
+                <label for="searchPrefix">プレフィックス:</label>
+                <input type="text" id="searchPrefix" placeholder="例: user:">
+            </div>
+            <button onclick="searchByPrefix()">プレフィックス検索</button>
+            <button onclick="getAllData()">全データ取得</button>
+            
+            <div id="searchResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <!-- Batch Operations -->
+        <div class="section">
+            <h2>バッチ操作</h2>
+            <div class="form-group">
+                <label for="batchData">バッチデータ (JSON形式):</label>
+                <textarea id="batchData" rows="4" placeholder='{"key1": "value1", "key2": "value2", "key3": null}'></textarea>
+            </div>
+            <button onclick="batchWrite()">バッチ書き込み</button>
+            
+            <div id="batchResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <!-- Performance Test -->
+        <div class="section">
+            <h2>パフォーマンステスト</h2>
+            <div class="form-group">
+                <label for="testDataCount">生成するデータ数:</label>
+                <input type="number" id="testDataCount" value="1000" min="1" max="100000">
+            </div>
+            <button onclick="generateTestData()" class="success">テストデータ生成</button>
+            
+            <div id="performanceResult" class="result" style="display: none;"></div>
+        </div>
+        
+        <!-- Database Stats -->
+        <div class="section">
+            <h2>データベース統計</h2>
+            <button onclick="getStats()">統計情報取得</button>
+            <button onclick="compactDatabase()" class="success">コンパクション実行</button>
+            
+            <div id="statsResult" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/rocksdb';
+        
+        function showResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.textContent = JSON.stringify(data, null, 2);
+            element.className = `result ${isError ? 'error' : 'success'}`;
+            element.style.display = 'block';
+        }
+        
+        async function apiCall(url, options = {}) {
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                return { data, error: null };
+            } catch (error) {
+                return { data: null, error: error.message };
+            }
+        }
+        
+        async function putData() {
+            const key = document.getElementById('putKey').value;
+            const value = document.getElementById('putValue').value;
+            
+            if (!key || !value) {
+                showResult('basicResult', { error: 'キーと値の両方を入力してください' }, true);
+                return;
+            }
+            
+            const { data, error } = await apiCall(`${API_BASE}/put?key=${encodeURIComponent(key)}&value=${encodeURIComponent(value)}`, {
+                method: 'POST'
+            });
+            
+            showResult('basicResult', error ? { error } : data, !!error);
+        }
+        
+        async function getData() {
+            const key = document.getElementById('getKey').value;
+            
+            if (!key) {
+                showResult('basicResult', { error: 'キーを入力してください' }, true);
+                return;
+            }
+            
+            const { data, error } = await apiCall(`${API_BASE}/get/${encodeURIComponent(key)}`);
+            showResult('basicResult', error ? { error } : data, !!error);
+        }
+        
+        async function deleteData() {
+            const key = document.getElementById('getKey').value;
+            
+            if (!key) {
+                showResult('basicResult', { error: 'キーを入力してください' }, true);
+                return;
+            }
+            
+            const { data, error } = await apiCall(`${API_BASE}/delete/${encodeURIComponent(key)}`, {
+                method: 'DELETE'
+            });
+            
+            showResult('basicResult', error ? { error } : data, !!error);
+        }
+        
+        async function searchByPrefix() {
+            const prefix = document.getElementById('searchPrefix').value;
+            
+            if (!prefix) {
+                showResult('searchResult', { error: 'プレフィックスを入力してください' }, true);
+                return;
+            }
+            
+            const { data, error } = await apiCall(`${API_BASE}/search?prefix=${encodeURIComponent(prefix)}`);
+            showResult('searchResult', error ? { error } : data, !!error);
+        }
+        
+        async function getAllData() {
+            const { data, error } = await apiCall(`${API_BASE}/all`);
+            showResult('searchResult', error ? { error } : data, !!error);
+        }
+        
+        async function batchWrite() {
+            const batchDataText = document.getElementById('batchData').value;
+            
+            if (!batchDataText) {
+                showResult('batchResult', { error: 'バッチデータを入力してください' }, true);
+                return;
+            }
+            
+            try {
+                const batchData = JSON.parse(batchDataText);
+                const { data, error } = await apiCall(`${API_BASE}/batch`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(batchData)
+                });
+                
+                showResult('batchResult', error ? { error } : data, !!error);
+            } catch (e) {
+                showResult('batchResult', { error: 'Invalid JSON format: ' + e.message }, true);
+            }
+        }
+        
+        async function generateTestData() {
+            const count = document.getElementById('testDataCount').value;
+            
+            const { data, error } = await apiCall(`${API_BASE}/generate-test-data?count=${count}`, {
+                method: 'POST'
+            });
+            
+            showResult('performanceResult', error ? { error } : data, !!error);
+        }
+        
+        async function getStats() {
+            const { data, error } = await apiCall(`${API_BASE}/stats`);
+            showResult('statsResult', error ? { error } : data, !!error);
+        }
+        
+        async function compactDatabase() {
+            const { data, error } = await apiCall(`${API_BASE}/compact`, {
+                method: 'POST'
+            });
+            
+            showResult('statsResult', error ? { error } : data, !!error);
+        }
+    </script>
+</body>
+</html>
